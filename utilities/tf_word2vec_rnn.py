@@ -26,15 +26,17 @@ def _learn(args):
         sess.run(init)
 
         # Train model.
-        for epoch in range(args.epochs):
-            for time_step in range(num_steps):
+        for epoch in np.arange(args.epochs):
+            steps = np.arange(num_steps)
+            np.random.shuffle(steps)
+            for idx, time_step in enumerate(steps):
                 batch_x = word_vecs[time_step * batch_size:(time_step + 1) * batch_size]
                 batch_y = one_hot_lbls[time_step * batch_size:(time_step + 1) * batch_size]
                 feed_dict = {lstm.x: batch_x, lstm.y: batch_y}
                 _, expect, predict, train_accuracy = sess.run([lstm.optimize, lstm.expected, lstm.predicted, lstm.accuracy], feed_dict=feed_dict)
 
-                if (time_step + 1) % iter_wait == 0:
-                    print("[Epoch {epoch}, Iteration {time_step}] Accuracy: {accuracy}".format(epoch=epoch, time_step=time_step, accuracy=train_accuracy))
+                if (idx + 1) % iter_wait == 0:
+                    print("[Epoch {epoch}, Iteration {idx}] Accuracy: {accuracy}".format(epoch=epoch, idx=idx, accuracy=train_accuracy))
                     print("[Expected]\t{expect}".format(expect=expect))
                     print("[Predicted]\t{predict}".format(predict=predict))
 
@@ -87,7 +89,7 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--load_path', action='store')
     parser.add_argument('-m', '--mode', action='store', required=True, choices=['learn', 'eval'])
     parser.add_argument('-o', '--origin', action='store', default=25, type=int)
-    parser.add_argument('-r', '--rnn_size', action='store', default=10, type=int)
+    parser.add_argument('-r', '--rnn_size', action='store', default=32, type=int)
     parser.add_argument('-s', '--save_path', action='store')
     parser.add_argument('word2vec')
     parser.add_argument('labels')

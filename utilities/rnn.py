@@ -6,7 +6,7 @@ class MultiRNNLSTM():
     """Convenience class for Stacked LSTMs.
 
     Args:
-        rnn_size: Size of RNN.
+        rnn_size: Number of units in LSTM cell.
         num_layers: Number of layers in stacked LSTM.
         num_labels: Number of labels in targt.
         batch_size: Size of batches.
@@ -20,7 +20,7 @@ class MultiRNNLSTM():
         self._batch_size = batch_size
         self._features = features
         self._eta = eta
-        self._lstm = tf.nn.rnn_cell.BasicLSTMCell(rnn_size)
+        self._lstm = tf.nn.rnn_cell.LSTMCell(rnn_size)
         self._lstm = tf.nn.rnn_cell.MultiRNNCell([self._lstm] * self._num_layers)
         self._init_state = self._lstm.zero_state(self._batch_size, tf.float32)
 
@@ -31,8 +31,8 @@ class MultiRNNLSTM():
         self._x = tf.placeholder(tf.float32, [self._batch_size, self._features])
         self._y = tf.placeholder(tf.int32, [self._batch_size, self._num_labels])
 
-        output, state = tf.nn.dynamic_rnn(self._lstm, tf.reshape(self._x, [1, self._batch_size, self._features]), dtype=tf.float32)
-        self._h = tf.reshape(output, [-1, self._rnn_size])
+        self._output, self._state = tf.nn.dynamic_rnn(self._lstm, tf.reshape(self._x, [1, self._batch_size, self._features]), dtype=tf.float32)
+        self._h = tf.reshape(self._output, [-1, self._rnn_size])
         self._logits = tf.matmul(self._h, self._W) + self._b
         self._y_hat = tf.nn.softmax(self._logits)
         self._expected = tf.argmax(self._y, 1)
@@ -41,7 +41,7 @@ class MultiRNNLSTM():
         self._accuracy = tf.reduce_mean(tf.cast(self._correct, tf.float32))
 
         self._cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self._y_hat, self._y))
-        self._optimize = tf.train.GradientDescentOptimizer(self._eta).minimize(self._cross_entropy)
+        self._optimize = tf.train.AdamOptimizer(self._eta).minimize(self._cross_entropy)
 
     @property
     def rnn_size(self):
