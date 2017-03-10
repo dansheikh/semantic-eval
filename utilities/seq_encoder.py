@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import sys
 import argparse
 import os
 import gensim
@@ -9,9 +8,9 @@ import numpy as np
 
 
 def _main():
-    """Uses word-to-vector model to produce Conll formatted files with vectorized target words."""
+    """Uses word-to-vector model to produce CoNLL with vectorized target words."""
 
-    parser = argparse.ArgumentParser(description='Auto-annotate')
+    parser = argparse.ArgumentParser(description='SeqEncoder')
     parser.add_argument('-s', '--sep', action='store', default='\t')
     parser.add_argument('embed_loc')
     parser.add_argument('read_file')

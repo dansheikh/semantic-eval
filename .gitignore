@@ -1,8 +1,9 @@
 *~
 *.pyc
-*
+.idea/
 __pycache__/
-!checkpoints
-!logs
+*
+!checkpoints/
+!logs/
 !utilities/
 
