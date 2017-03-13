@@ -9,7 +9,7 @@ embeds_zip="https://drive.google.com/uc?export=download&id=0B7r5RtYVraYyMFQtd24t
 semeval_zip="https://drive.google.com/uc?export=download&id=0B7r5RtYVraYyWGlmeTdsYmdUeEU"
 urls=($embeds_zip $semeval_zip)
 zipfiles=('embeds.zip' 'semeval.zip')
-dirs=('embeds' 'data' 'checkpoints' 'logs')
+dirs=('embeds' 'data' 'checkpoints' 'logs/tensorflow')
 
 # Download zip files.
 ((url_cnt=${#urls[@]} - 1))
@@ -23,7 +23,7 @@ wait
 ((dir_cnt=${#dirs[@]} - 1))
 for idx in $(seq 0 $dir_cnt); do
     echo "Making directory ${dirs[$idx]}"
-    mkdir ${dirs[$idx]}
+    mkdir -p ${dirs[$idx]}
 done
 
 # Unzip files.
