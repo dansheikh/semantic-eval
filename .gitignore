@@ -2,8 +2,10 @@
 *.pyc
 .idea/
 __pycache__/
-*
-!checkpoints/
-!logs/
-!utilities/
-
+archives/
+crfsuite/
+data/
+dev/
+embeds/
+models/
+train/
