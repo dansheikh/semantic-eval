@@ -3,9 +3,11 @@
 .idea/
 __pycache__/
 archives/
+checkpoints/
 crfsuite/
 data/
 dev/
 embeds/
+logs/
 models/
 train/
