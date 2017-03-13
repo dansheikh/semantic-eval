@@ -42,8 +42,8 @@ def _learn(args):
         for epoch in np.arange(args.epochs):
             steps = np.arange(rounds)  # Each step is a batch round.
 
-            state = np.zeros((args.depth, 2, batch_size, args.rnn_size))  # Set empty initial state for each batch.
             for step in steps:
+                state = np.zeros((args.depth, 2, batch_size, args.rnn_size))  # Set empty initial state for each batch.
                 chosen_seqs = choices[step]
                 (seq_len, seq_lbl_zip) = tt.package_batch(chosen_seqs, sequences, one_hot_labels, label_dict)
                 batch_x, batch_y = zip(*seq_lbl_zip)
@@ -60,8 +60,9 @@ def _learn(args):
                 writer.add_summary(summary, step)
 
         path = os.path.join(args.save_path, '')
-        filename = os.path.split(os.path.basename(__file__))[0]
+        filename = os.path.splitext(os.path.basename(__file__))[0]
         checkpoint = "{path}{filename}.ckpt".format(path=path, filename=filename)
+        print("Saving model variables to: {checkpoint}".format(checkpoint=checkpoint))
         saver.save(sess, checkpoint)
 
         print("(Average) Loss: {}".format(np.mean(losses, axis=0)))
@@ -69,17 +70,23 @@ def _learn(args):
 
 
 def _eval(args):
-    # Preprocess data set.
-    embedding, word_vecs, labels = tt.preprocess(args.word2vec, args.labels)
-    embed_shape = np.shape(embedding.syn0)
-    features = embed_shape[1]
-    one_hot_labels, lbl_dict = tt.one_hot(labels)
-    num_labels = len(lbl_dict)
-    lbl_list = tt.dict_to_list(lbl_dict)
-    batch_size = len(word_vecs)
+    label_dict = {'O': 0, 'Material': 1, 'Process': 2, 'Task': 3}
+    label_list = ['' for n in np.arange(len(label_dict))]
+    for k, v in label_dict.items():
+        label_list[v] = k
+
+    num_labels = len(label_dict)
+    (sequences, labels) = tt.preprocess(args.word2vec_path, args.labels_path)  # Prepare zipped sequences of vectored words and labels.
+    num_inputs = len(sequences)  # Determine number of training examples.
+    feature_size = len(sequences[0][0])  # Determine word vector size.
+    one_hot_labels = tt.one_hot(labels, label_dict)
+
+    # Calculate batches.
+    batch_size, steps = tt.batch_calc(num_inputs, args.target_batch_size)
+    _, iter_wait = tt.batch_calc(batch_size, args.target_batch_size // 4)
 
     with tf.variable_scope('lstm_model'):
-        model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, features, args.alpha)
+        model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, args.input_keep_prob)
 
     saver = tf.train.Saver()
     init = tf.global_variables_initializer()
@@ -88,17 +95,41 @@ def _eval(args):
         sess.run(init)
         saver.restore(sess, args.load_path)  # Load trained weights and biases.
 
-        batch_x = word_vecs
-        batch_y = one_hot_labels
-        feed_dict = {model.x: batch_x, model.y: batch_y}
-        _, expect, predict, eval_accuracy = sess.run([model.optimize, model.expected, model.predicted, model.accuracy], feed_dict=feed_dict)
+        losses = np.zeros(batch_size)
+        accuracies = np.zeros(batch_size)
+        conll_list = []
 
-        print("Evaluation Accuracy: {accuracy}".format(accuracy=eval_accuracy))
+        # Evaluate model.
+        for step in np.arange(steps):
+            state = np.zeros((args.depth, 2, batch_size, args.rnn_size))  # Set empty initial state for each batch.
+            chosen_seqs = np.arange(batch_size * step, batch_size * (step + 1))
+            (seq_len, seq_lbl_zip) = tt.package_batch(chosen_seqs, sequences, one_hot_labels, label_dict)
+            batch_x, batch_y = zip(*seq_lbl_zip)
 
+            feed_dict = {model.x: batch_x, model.y: batch_y, model.seq_len: seq_len, model.init_state: state}
+
+            expectation, prediction, eval_cross_entropy, eval_accuracy, state  = sess.run([model.expect, model.predict, model.cross_entropy, model.accuracy, model.dynamic_state], feed_dict=feed_dict)
+            losses[step] = eval_cross_entropy
+            accuracies[step] = eval_accuracy
+
+            if (step + 1) % iter_wait == 0:
+                print("[Step {step:0>4d}] Loss: {loss:.5f} | Accuracy: {accuracy:.5f}".format(step=step, loss=eval_cross_entropy, accuracy=eval_accuracy))
+
+            zip_list = []
+            for e,p in zip(expectation, prediction):
+                zip_list.append((label_list[e], label_list[p]))
+            conll_list.extend(zip_list)
+
+        print("(Average) Loss: {}".format(np.mean(losses, axis=0)))
+        print("(Average) Accuracy: {}".format(np.mean(accuracies, axis=0)))
+
+        path = os.path.join(args.conll_path, '')
+        filename = os.path.splitext(os.path.basename(__file__))[0]
+        conll_file = "{path}{filename}.log".format(path=path, filename=filename)
         # Write expected and predicted values to file in CoNLL format.
-        with open(args.conll_path, mode='w+') as conll:
-            for e, p in zip(expect, predict):
-                line = "{e}\t{p}\n".format(e=lbl_list[e], p=lbl_list[p])
+        with open(conll_file, mode='w+') as conll:
+            for pairing in conll_list:
+                line = "{e}\t{p}\n".format(e=pairing[0], p=pairing[1])
                 conll.write(line)
 
 
