@@ -17,4 +17,4 @@ fmeasure.py [log_path]
 tf_word2vec_rnn.py -m learn -s [checkpoint_path] [embed_path] [data_path]
 
 ## Evaluating RNN Model
-tf_word2vec_rnn.py -m eval -l [checkpoint_path] [embed_path] [data_path]
+tf_word2vec_rnn.py -m eval -l [checkpoint_path] -c [conll_path] [embed_path] [data_path]

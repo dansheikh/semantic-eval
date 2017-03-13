@@ -30,9 +30,9 @@ def _learn(args):
     init = tf.global_variables_initializer()
 
     with tf.Session() as sess:
-        logpath = os.path.join(args.board_path, 'train', '')
+        logpath = os.path.join(args.board_path, '')
         tt.clear_logs(logpath)
-        writer = tf.summary.FileWriter(args.board_path + 'train', graph=sess.graph)
+        writer = tf.summary.FileWriter(logpath, graph=sess.graph)
         sess.run(init)
 
         losses = np.zeros((args.epochs, rounds))
@@ -90,10 +90,14 @@ def _eval(args):
 
     saver = tf.train.Saver()
     init = tf.global_variables_initializer()
+    
+    path = os.path.join(args.load_path, '')
+    filename = os.path.splitext(os.path.basename(__file__))[0]
+    checkpoint = "{path}{filename}.ckpt".format(path=path, filename=filename)
 
     with tf.Session() as sess:
         sess.run(init)
-        saver.restore(sess, args.load_path)  # Load trained weights and biases.
+        saver.restore(sess, checkpoint)  # Load trained weights and biases.
 
         losses = np.zeros(batch_size)
         accuracies = np.zeros(batch_size)
