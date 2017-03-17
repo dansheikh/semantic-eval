@@ -120,7 +120,7 @@ class MultiRNNLSTM():
         # relu_logits = tf.nn.relu(lstm_logits)
         # logits = tf.matmul(relu_logits, self._W) + self._b
         #
-        output = tf.reshape(output, [-1, 32])
+        output = tf.reshape(output, [-1, self._rnn_size])
         lstm_logits = tf.matmul(output, self._lstm_W) + self._lstm_b
         relu_logits = tf.nn.relu(lstm_logits)
         logits = tf.matmul(relu_logits, self._W) + self._b
@@ -278,10 +278,17 @@ class MultiRNNGRU():
 
     @lazy_property
     def y_hat(self):
-        output = tf.transpose(self.dynamic_output, [1, 0, 2])  # Transpose to: [mini_batch_size x batch_size x rnn_size]
-        last_output = tf.gather(output, int(output.get_shape()[0] - 1))  # Gather: [batch_size x rnn_size]
+        (output, self._dynamic_state) = self.dynamic_run
 
-        lstm_logits = tf.matmul(last_output, self._gru_W) + self._gru_b
+        # output = tf.transpose(output, [1, 0, 2])  # Transpose to: [features x batch_size x rnn_size]
+        # last_output = tf.gather(output, int(output.get_shape()[0] - 1))  # Gather: [batch_size x rnn_size]
+        #
+        # lstm_logits = tf.matmul(last_output, self._lstm_W) + self._lstm_b
+        # relu_logits = tf.nn.relu(lstm_logits)
+        # logits = tf.matmul(relu_logits, self._W) + self._b
+        #
+        output = tf.reshape(output, [-1, self._rnn_size])
+        lstm_logits = tf.matmul(output, self._lstm_W) + self._lstm_b
         relu_logits = tf.nn.relu(lstm_logits)
         logits = tf.matmul(relu_logits, self._W) + self._b
 

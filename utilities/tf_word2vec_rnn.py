@@ -23,7 +23,11 @@ def _learn(args):
     _, iter_wait = tt.batch_calc(rounds, args.target_batch_size)
 
     with tf.variable_scope('lstm_model'):
-        model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, args.input_keep_prob)
+        input_keep_prob = args.input_keep_prob
+        if input_keep_prob == 0.0:
+            input_keep_prob = None
+
+        model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, input_keep_prob)
 
     saver = tf.train.Saver()
     sum_merge = tf.summary.merge_all()
@@ -86,11 +90,15 @@ def _eval(args):
     _, iter_wait = tt.batch_calc(batch_size, args.target_batch_size // 4)
 
     with tf.variable_scope('lstm_model'):
-        model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, args.input_keep_prob)
+        input_keep_prob = args.input_keep_prob
+        if input_keep_prob == 0.0:
+            input_keep_prob = None
+
+        model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, input_keep_prob)
 
     saver = tf.train.Saver()
     init = tf.global_variables_initializer()
-    
+
     path = os.path.join(args.load_path, '')
     filename = os.path.splitext(os.path.basename(__file__))[0]
     checkpoint = "{path}{filename}.ckpt".format(path=path, filename=filename)
@@ -112,7 +120,7 @@ def _eval(args):
 
             feed_dict = {model.x: batch_x, model.y: batch_y, model.seq_len: seq_len, model.init_state: state}
 
-            expectation, prediction, eval_cross_entropy, eval_accuracy, state  = sess.run([model.expect, model.predict, model.cross_entropy, model.accuracy, model.dynamic_state], feed_dict=feed_dict)
+            expectation, prediction, eval_cross_entropy, eval_accuracy, state = sess.run([model.expect, model.predict, model.cross_entropy, model.accuracy, model.dynamic_state], feed_dict=feed_dict)
             losses[step] = eval_cross_entropy
             accuracies[step] = eval_accuracy
 
@@ -120,7 +128,7 @@ def _eval(args):
                 print("[Step {step:0>4d}] Loss: {loss:.5f} | Accuracy: {accuracy:.5f}".format(step=step, loss=eval_cross_entropy, accuracy=eval_accuracy))
 
             zip_list = []
-            for e,p in zip(expectation, prediction):
+            for e, p in zip(expectation, prediction):
                 zip_list.append((label_list[e], label_list[p]))
             conll_list.extend(zip_list)
 
@@ -139,12 +147,12 @@ def _eval(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Word2Vec_RNN')
-    parser.add_argument('-a', '--alpha', action='store', default=0.01, type=float)
+    parser.add_argument('-a', '--alpha', action='store', default=0.0001, type=float)
     parser.add_argument('-b', '--board_path', action='store', default='logs', type=str)
     parser.add_argument('-c', '--conll_path', action='store')
     parser.add_argument('-d', '--depth', action='store', default=1, type=int)
     parser.add_argument('-e', '--epochs', action='store', default=5, type=int)
-    parser.add_argument('-i', '--input_keep_prob', action='store', default=0.5, type=float)
+    parser.add_argument('-i', '--input_keep_prob', action='store', default=0.20, type=float)
     parser.add_argument('-l', '--load_path', action='store')
     parser.add_argument('-m', '--mode', action='store', required=True, choices=['learn', 'eval'])
     parser.add_argument('-r', '--rnn_size', action='store', default=32, type=int)
