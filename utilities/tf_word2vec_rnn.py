@@ -22,6 +22,8 @@ def _learn(args):
     batch_size = args.target_batch_size
     _, iter_wait = tt.batch_calc(rounds, args.target_batch_size)
 
+    print("{rounds} training rounds with {choices} (randomized) selections.".format(rounds=rounds, choices=np.shape(choices)[1]))
+
     with tf.variable_scope('lstm_model'):
         input_keep_prob = args.input_keep_prob
         if input_keep_prob == 0.0:
@@ -89,6 +91,8 @@ def _eval(args):
     batch_size, steps = tt.batch_calc(num_inputs, args.target_batch_size)
     _, iter_wait = tt.batch_calc(batch_size, args.target_batch_size // 4)
 
+    print("Evaluating {steps} batches of size {batch_size}.".format(steps=steps, batch_size=batch_size))
+
     with tf.variable_scope('lstm_model'):
         input_keep_prob = args.input_keep_prob
         if input_keep_prob == 0.0:
@@ -107,8 +111,8 @@ def _eval(args):
         sess.run(init)
         saver.restore(sess, checkpoint)  # Load trained weights and biases.
 
-        losses = np.zeros(batch_size)
-        accuracies = np.zeros(batch_size)
+        losses = np.zeros(steps)
+        accuracies = np.zeros(steps)
         conll_list = []
 
         # Evaluate model.
