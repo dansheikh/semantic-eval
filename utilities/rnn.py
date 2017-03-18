@@ -26,6 +26,7 @@ class MultiRNNLSTM():
         self._eta = eta
         self._input_keep_prob = input_keep_prob
         self._dynamic_state = None
+        self._logits = None
 
         self._lstm_cell = tf.contrib.rnn.LSTMCell(rnn_size)
         if self._input_keep_prob is not None:
@@ -86,6 +87,14 @@ class MultiRNNLSTM():
         self._dynamic_state = x
 
     @property
+    def logits(self):
+        return self._logits
+
+    @logits.setter
+    def logits(self, x):
+        self._logits = x
+
+    @property
     def x(self):
         return self._x
 
@@ -123,9 +132,9 @@ class MultiRNNLSTM():
         output = tf.reshape(output, [-1, self._rnn_size])
         lstm_logits = tf.matmul(output, self._lstm_W) + self._lstm_b
         relu_logits = tf.nn.relu(lstm_logits)
-        logits = tf.matmul(relu_logits, self._W) + self._b
+        self._logits = tf.matmul(relu_logits, self._W) + self._b
 
-        return tf.nn.softmax(logits)
+        return tf.nn.softmax(self._logits)
 
     @lazy_property
     def expect(self):

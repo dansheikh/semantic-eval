@@ -24,14 +24,14 @@ def lazy_property(func):
 
 def diagram(loss, accuracy):
     """Creates loss and accuracy line graphs."""
-    if type(loss) is not np.ndarray: 
+    if type(loss) is not np.ndarray:
         loss = np.array(loss)
     if type(accuracy) is not np.ndarray:
         accuracy = np.array(accuracy)
 
     if len(np.shape(loss)) > 1:
         loss = np.mean(loss, axis=0)
-        
+
     if len(np.shape(accuracy)) > 1:
         accuracy = np.mean(accuracy, axis=0)
 
@@ -47,13 +47,13 @@ def diagram(loss, accuracy):
 
     ax1.set_title('Loss')
     ax2.set_title('Accuracy')
-    
+
     sampled_loss = loss[0::10]
     sampled_accuracy = accuracy[0::10]
 
     ax1.plot(np.arange(np.shape(sampled_loss)[0]), sampled_loss, linewidth=1.5, color='b')
     ax2.plot(np.arange(np.shape(sampled_accuracy)[0]), sampled_accuracy, linewidth=1.5, color='c')
-    
+
     plt.show()
 
 
@@ -94,10 +94,6 @@ def preprocess(word2vec_path, data_path, sep='\t'):
     """
     word2vec_model = gensim.models.Word2Vec.load(word2vec_path)
     embeds = word2vec_model.wv.syn0
-    embed_count, features = np.shape(embeds)
-
-    # Counter.
-    max_seq = 0
 
     # Parsing constants.
     BEG = '__BOS__'
@@ -135,11 +131,6 @@ def preprocess(word2vec_path, data_path, sep='\t'):
                 else:
                     input_seq.append(UNK)
                     lbl_seq.append(line[0])
-
-                # Add input and label sequences to sequence containers.
-                input_len = len(input_seq)
-                if input_len > max_seq:
-                    max_seq = input_len
 
                 sequences.append(input_seq)
                 labels.append(lbl_seq)
@@ -195,6 +186,7 @@ def package_batch(chosen_seqs, sequences, labels, label_dict):
 
     return (seq_len, zip(packed_seqs, packed_lbls))
 
+
 def one_hot(sequences, labels):
     """Encode labels into one-hot format.
 
@@ -220,13 +212,14 @@ def one_hot(sequences, labels):
     return encoding
 
 
-def dict_to_list(d):
-    """Converts dictionary to list using dictionary values as sorting key."""
-    tmp = [None] * len(d)
-    for k, v in d.items():
-        tmp[v] = k
+def epoch_mean(seq):
+    def _mean(item):
+        if len(item) > 0:
+            return sum(item) / float(len(item))
+        else:
+            return None
 
-    return tmp
+    return [_mean(item) for i, item in enumerate(seq)]
 
 
 def random_choices(num, picks):

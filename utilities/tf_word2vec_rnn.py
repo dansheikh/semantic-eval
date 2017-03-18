@@ -16,13 +16,7 @@ def _learn(args):
     num_inputs = len(sequences)  # Determine number of training examples.
     feature_size = len(sequences[0][0])  # Determine word vector size.
     one_hot_labels = tt.one_hot(labels, label_dict)
-
-    # Calculate batches.
-    rounds, choices = tt.random_choices(num_inputs, args.target_batch_size)
     batch_size = args.target_batch_size
-    _, iter_wait = tt.batch_calc(rounds, args.target_batch_size)
-
-    print("{rounds} training rounds with {choices} (randomized) selections.".format(rounds=rounds, choices=np.shape(choices)[1]))
 
     with tf.variable_scope('lstm_model'):
         input_keep_prob = args.input_keep_prob
@@ -41,14 +35,26 @@ def _learn(args):
         writer = tf.summary.FileWriter(logpath, graph=sess.graph)
         sess.run(init)
 
-        losses = np.zeros((args.epochs, rounds))
-        accuracies = np.zeros((args.epochs, rounds))
+        losses = []
+        accuracies = []
+        scores = []
+        epoch_cnt = 0
+        step_cnt = 0
+        plateau_cnt = 0
+        learning = True
 
         # Train model.
-        for epoch in np.arange(args.epochs):
-            steps = np.arange(rounds)  # Each step is a batch round.
+        while learning:
+            # Add placeholder lists.
+            losses.append([])
+            accuracies.append([])
+            scores.append([])
+
+            rounds, choices = tt.random_choices(num_inputs, batch_size)  # Calculate batches.
+            steps = np.arange(rounds)  # Each step is a batch of sequences.
 
             for step in steps:
+                step_cnt += 1  # Increase step counter.
                 state = np.zeros((args.depth, 2, batch_size, args.rnn_size))  # Set empty initial state for each batch.
                 chosen_seqs = choices[step]
                 (seq_len, seq_lbl_zip) = tt.package_batch(chosen_seqs, sequences, one_hot_labels, label_dict)
@@ -56,23 +62,58 @@ def _learn(args):
 
                 feed_dict = {model.x: batch_x, model.y: batch_y, model.seq_len: seq_len, model.init_state: state}
 
-                _, train_cross_entropy, train_accuracy, state, summary = sess.run([model.optimize, model.cross_entropy, model.accuracy, model.dynamic_state, sum_merge], feed_dict=feed_dict)
-                losses[epoch, step] = train_cross_entropy
-                accuracies[epoch, step] = train_accuracy
+                _, logits, train_cross_entropy, train_accuracy, state, summary = sess.run([model.optimize, model.logits, model.cross_entropy, model.accuracy, model.dynamic_state, sum_merge], feed_dict=feed_dict)
 
-                if (step + 1) % iter_wait == 0:
-                    print("[Epoch {epoch}, Step {step:0>4d}] Loss: {loss:.5f} | Accuracy: {accuracy:.5f}".format(epoch=epoch, step=step, loss=train_cross_entropy, accuracy=train_accuracy))
+                # Check if learning has plateaued.
+                if plateau_cnt == 3:
+                    print('Learning plateaued.')
+                    learning = False
+                    break
+                elif step_cnt * batch_size >= args.kill_zone:
+                    print('Learning timeout.')
+                    learning = False
+                    break
+                else:
+                    if len(losses[epoch_cnt]) > 0 and abs(losses[epoch_cnt][-1] - train_cross_entropy) < args.alpha:
+                        plateau_cnt += 1
+                    else:
+                        plateau_cnt = 0
+
+                    # Update performance logs.
+                    losses[epoch_cnt].append(train_cross_entropy)
+                    accuracies[epoch_cnt].append(train_accuracy)
+                    scores[epoch_cnt].append(logits)
+
+                if learning and (step_cnt * batch_size) % 100 == 0:
+                    print("[Step {steps:0>3d}] Loss: {loss:.5f} | Accuracy: {accuracy:.5f}".format(steps=(step_cnt * batch_size), loss=train_cross_entropy, accuracy=train_accuracy))
 
                 writer.add_summary(summary, step)
 
+            if learning:
+                epoch_cnt += 1  # Increment epoch counter.
+
+        scores = np.array(scores)  # Convert scores list to array.
         path = os.path.join(args.save_path, '')
         filename = os.path.splitext(os.path.basename(__file__))[0]
         checkpoint = "{path}{filename}.ckpt".format(path=path, filename=filename)
         print("Saving model variables to: {checkpoint}".format(checkpoint=checkpoint))
         saver.save(sess, checkpoint)
 
-        print("(Average) Loss: {}".format(np.mean(losses, axis=0)))
-        print("(Average) Accuracy: {}".format(np.mean(accuracies, axis=0)))
+        zip_loss_accuracy = zip(tt.epoch_mean(losses), tt.epoch_mean(accuracies))
+
+        for zip_loss, zip_accuracy in zip_loss_accuracy:
+            if zip_loss is not None and zip_accuracy is not None:
+                print("(Average) Loss: {loss:.5f} | Accuracy {accuracy:.5f}".format(loss=zip_loss, accuracy=zip_accuracy))
+
+        if args.peek:
+            logits_path = os.path.join(args.peek, '')
+            logits_filename = os.path.splitext(os.path.basename(__file__))[0]
+            logits_file = "{path}{filename}.npy".format(path=logits_path, filename=logits_filename)
+            if os.path.exists(logits_file):
+                os.remove(logits_file)
+
+            print("Saving scores to {logits_file}".format(logits_file=logits_file))
+            np.save(logits_file, np.array(scores))
 
 
 def _eval(args):
@@ -152,13 +193,14 @@ def _eval(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Word2Vec_RNN')
     parser.add_argument('-a', '--alpha', action='store', default=0.0001, type=float)
-    parser.add_argument('-b', '--board_path', action='store', default='logs', type=str)
+    parser.add_argument('-b', '--board_path', action='store', default='logs/', type=str)
     parser.add_argument('-c', '--conll_path', action='store')
     parser.add_argument('-d', '--depth', action='store', default=1, type=int)
-    parser.add_argument('-e', '--epochs', action='store', default=5, type=int)
     parser.add_argument('-i', '--input_keep_prob', action='store', default=0.20, type=float)
+    parser.add_argument('-k', '--kill_zone', action='store', default=1000000, type=int)
     parser.add_argument('-l', '--load_path', action='store')
     parser.add_argument('-m', '--mode', action='store', required=True, choices=['learn', 'eval'])
+    parser.add_argument('-p', '--peek', action='store', default='', type=str)
     parser.add_argument('-r', '--rnn_size', action='store', default=32, type=int)
     parser.add_argument('-s', '--save_path', action='store')
     parser.add_argument('-t', '--target_batch_size', action='store', default=25, type=int)
@@ -171,9 +213,10 @@ if __name__ == '__main__':
             parser.error('Mode "learn" requires save path.')
         print('Learning...')
         _learn(args)
-        print('Learning complete...')
+        print('Learning complete.')
     else:
         if args.load_path is None or args.conll_path is None:
             parser.error('Mode "eval" requires load path and CoNLL path.')
         print('Evaluating...')
         _eval(args)
+        print('Evaluation complete.')
