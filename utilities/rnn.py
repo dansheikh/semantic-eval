@@ -36,8 +36,8 @@ class MultiRNNLSTM():
         with tf.name_scope('inputs'):
             self._seq_len = tf.placeholder(tf.float32, shape=(self._batch_size), name='seq_len')
             self._init_state = tf.placeholder(tf.float32, shape=(self._num_layers, 2, self._batch_size, self._rnn_size), name='init_state')
-            self._x = tf.placeholder(tf.float32, shape=(self._batch_size, None, self._feature_size), name='x')
-            self._y = tf.placeholder(tf.int32, shape=(self._batch_size, None, self._num_labels), name='y')
+            self._x = tf.placeholder(tf.float32, shape=(self._batch_size, None, self._feature_size), name='x')  # None is fill-in for dynamically padded sentences.
+            self._y = tf.placeholder(tf.int32, shape=(self._batch_size, None, self._num_labels), name='y')  # None is fill-in for dynamically padded labels.
 
         with tf.variable_scope('lstm_vars'):
             self._lstm_W = tt.weight_variable([self._rnn_size, 100], 'lstm_weight')
@@ -147,7 +147,7 @@ class MultiRNNLSTM():
 
     @lazy_property
     def cross_entropy(self):
-        cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.y, logits=self.y_hat))
+        cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.expect, logits=self.logits))
         tf.summary.scalar('cross_entropy', cross_entropy)
 
         return cross_entropy

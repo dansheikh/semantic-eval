@@ -82,7 +82,7 @@ def _learn(args):
                     # Update performance logs.
                     losses[epoch_cnt].append(train_cross_entropy)
                     accuracies[epoch_cnt].append(train_accuracy)
-                    scores[epoch_cnt].append(logits)
+                    scores[epoch_cnt].append(np.array(logits))
 
                 if learning and (step_cnt * batch_size) % 100 == 0:
                     print("[Step {steps:0>3d}] Loss: {loss:.5f} | Accuracy: {accuracy:.5f}".format(steps=(step_cnt * batch_size), loss=train_cross_entropy, accuracy=train_accuracy))
