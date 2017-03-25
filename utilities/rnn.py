@@ -128,20 +128,22 @@ class MultiRNNLSTM():
 
     @lazy_property
     def y_hat(self):
-        gathered_output = tf.gather(self._dynamic_output, self._batch_size - 1)
-        self._logits = tf.contrib.layers.fully_connected(inputs=gathered_output, num_outputs=self._num_labels)
+        output = tf.reshape(self._dynamic_output, [-1, self._rnn_size])
+        self._logits = tf.contrib.layers.fully_connected(inputs=output, num_outputs=self._num_labels)
 
         # output = tf.reshape(output, [-1, self._rnn_size])
         # lstm_logits = tf.matmul(output, self._lstm_W) + self._lstm_b
         # relu_logits = tf.nn.relu(lstm_logits)
         # self._logits = tf.matmul(relu_logits, self._W) + self._b
 
-        return tf.nn.softmax(self._logits)
+        predicted = tf.nn.softmax(self._logits)
+        return predicted
 
     @lazy_property
     def expect(self):
-        gathered_y = tf.gather(self.y, self._batch_size - 1)
-        return tf.argmax(gathered_y, 1)
+        y = tf.reshape(self._y, [-1, self._num_labels])
+        expected = tf.argmax(y, 1)
+        return expected
 
     @lazy_property
     def predict(self):
@@ -149,9 +151,7 @@ class MultiRNNLSTM():
 
     @lazy_property
     def cross_entropy(self):
-        # cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.expect, logits=self.logits))
-        gathered_y = tf.gather(self.y, self._batch_size - 1)
-        cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=gathered_y, logits=self.logits))
+        cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self._y, logits=self.logits))
         tf.summary.scalar('cross_entropy', cross_entropy)
 
         return cross_entropy
