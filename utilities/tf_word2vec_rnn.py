@@ -82,13 +82,13 @@ def _learn(args):
                     accuracies[epoch_cnt].append(train_accuracy)
                     scores[epoch_cnt].append(logits)
 
-                if learning and step_cnt % 3 == 0:
+                if learning and (step_cnt * batch_size) % (10 * batch_size) == 0:
                     print("[Step {steps:0>3d}] Loss: {loss:.5f} | Accuracy: {accuracy:.5f}".format(steps=(step_cnt * batch_size), loss=train_cross_entropy, accuracy=train_accuracy))
 
                 writer.add_summary(summary, step)
                 step_cnt += 1  # Increase step counter.
 
-            epoch_cnt +=1 # Increase epoch counter.
+            epoch_cnt += 1  # Increase epoch counter.
 
         path = os.path.join(args.save_path, '')
         filename = os.path.splitext(os.path.basename(__file__))[0]
