@@ -116,7 +116,7 @@ def preprocess(word2vec_path, data_path, sep='\t'):
     word2vec_model = gensim.models.Word2Vec.load(word2vec_path)
     embeds = word2vec_model.wv.syn0
 
-    # Parsing constants.
+    # Set constants.
     BEG = '__BOS__'
     END = '__EOS__'
     UNK = np.mean(embeds, axis=0)
@@ -181,8 +181,8 @@ def package_batch(chosen_seqs, sequences, labels, label_dict):
     seq_len = np.zeros(len(chosen_seqs))
     out_idx = label_dict['O']
     OUT = np.zeros((1,4))
-    OUT[out_idx] = 1
-    PAD = np.zeros((1,len(sequences[0][0])))  # Determine feature size from provided sequence element.
+    OUT[0][out_idx] = 1
+    PAD = np.zeros((1, np.shape(sequences[0])[1]))  # Determine feature size from provided sequence element.
     packed_seqs = []
     packed_lbls = []
 
