@@ -1,3 +1,4 @@
+import csv
 import functools
 import os
 
@@ -20,6 +21,26 @@ def lazy_property(func):
             return getattr(self, attr)
 
     return wrapper
+
+
+def csv_log(file, headers, inputs):
+    header_titles = ['' for w in np.arange(len(headers))]
+
+    for k, v in headers.items():
+        header_titles[v] = k
+
+    with open(file, 'w', newline='') as csv_file:
+        writer = csv.writer(csv_file, dialect='excel', delimiter=',', quotechar='"')
+        header_row = ['Epoch Id', 'Batch Id', 'Step Id']
+        header_row.extend(header_titles)
+        writer.writerow(header_row)
+
+        for e, epoch in enumerate(inputs):
+            for b, batches in enumerate(epoch):
+                for s, batch in enumerate(batches):
+                    data = [e, b, s]
+                    data.extend(batch)
+                    writer.writerow(data)
 
 
 def diagram(loss, accuracy):

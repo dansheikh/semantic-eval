@@ -25,7 +25,6 @@ def _learn(args):
 
         model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, input_keep_prob)
 
-    saver = tf.train.Saver()
     sum_merge = tf.summary.merge_all()
     init = tf.global_variables_initializer()
 
@@ -54,7 +53,6 @@ def _learn(args):
             steps = np.arange(rounds)  # Each step is a batch of sequences.
 
             for step in steps:
-                step_cnt += 1  # Increase step counter.
                 state = np.zeros((args.depth, 2, batch_size, args.rnn_size))  # Set empty initial state for each batch.
                 chosen_seqs = choices[step]
                 (seq_len, seq_lbl_zip) = tt.package_batch(chosen_seqs, sequences, one_hot_labels, label_dict)
@@ -82,21 +80,21 @@ def _learn(args):
                     # Update performance logs.
                     losses[epoch_cnt].append(train_cross_entropy)
                     accuracies[epoch_cnt].append(train_accuracy)
-                    scores[epoch_cnt].append(np.array(logits))
+                    scores[epoch_cnt].append(logits)
 
-                if learning and (step_cnt * batch_size) % batch_size == 0:
+                if learning and step_cnt % 3 == 0:
                     print("[Step {steps:0>3d}] Loss: {loss:.5f} | Accuracy: {accuracy:.5f}".format(steps=(step_cnt * batch_size), loss=train_cross_entropy, accuracy=train_accuracy))
 
                 writer.add_summary(summary, step)
+                step_cnt += 1  # Increase step counter.
 
-            if learning:
-                epoch_cnt += 1  # Increment epoch counter.
+            epoch_cnt +=1 # Increase epoch counter.
 
-        scores = np.array(scores)  # Convert scores list to array.
         path = os.path.join(args.save_path, '')
         filename = os.path.splitext(os.path.basename(__file__))[0]
         checkpoint = "{path}{filename}.ckpt".format(path=path, filename=filename)
         print("Saving model variables to: {checkpoint}".format(checkpoint=checkpoint))
+        saver = tf.train.Saver()
         saver.save(sess, checkpoint)
 
         zip_loss_accuracy = zip(tt.epoch_mean(losses), tt.epoch_mean(accuracies))
@@ -108,12 +106,12 @@ def _learn(args):
         if args.peek:
             logits_path = os.path.join(args.peek, '')
             logits_filename = os.path.splitext(os.path.basename(__file__))[0]
-            logits_file = "{path}{filename}.npy".format(path=logits_path, filename=logits_filename)
+            logits_file = "{path}{filename}.csv".format(path=logits_path, filename=logits_filename)
             if os.path.exists(logits_file):
                 os.remove(logits_file)
 
             print("Saving scores to {logits_file}".format(logits_file=logits_file))
-            np.save(logits_file, np.array(scores))
+            tt.csv_log(logits_file, label_dict, scores)
 
 
 def _eval(args):
