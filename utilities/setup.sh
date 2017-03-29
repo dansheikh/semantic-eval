@@ -6,7 +6,7 @@ command -v unzip >/dev/null 2>&1 || { echo "Program 'unzip' required. Install pr
 echo 'Setup initiated.'
 
 embeds_zip="https://drive.google.com/uc?export=download&id=0B7r5RtYVraYyMFQtd24tVHJ3blE"
-semeval_zip="https://drive.google.com/uc?export=download&id=0B7r5RtYVraYyWGlmeTdsYmdUeEU"
+semeval_zip="https://drive.google.com/uc?export=download&id=0B7r5RtYVraYyd3pFX2lIeE4zcms"
 urls=($embeds_zip $semeval_zip)
 zipfiles=('embeds.zip' 'semeval.zip')
 dirs=('embeds' 'data' 'checkpoints' 'logs/tensorflow')
