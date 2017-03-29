@@ -17,25 +17,28 @@ class MultiRNNLSTM():
         eta: Learning rate.
         input_keep_prob: Probability of retaining input.
     """
-    def __init__(self, rnn_size, num_layers, num_labels, batch_size, feature_size, eta, input_keep_prob=None):
+    def __init__(self, rnn_size, num_layers, num_labels, batch_size, feature_size, eta, bi=False, input_keep_prob=None):
         self._rnn_size = rnn_size
         self._num_layers = num_layers
         self._num_labels = num_labels
         self._batch_size = batch_size
         self._feature_size = feature_size
         self._eta = eta
+        self._bi = bi
         self._input_keep_prob = input_keep_prob
         self._dynamic_output = None
         self._dynamic_state = None
         self._logits = None
 
         self._lstm_cell = tf.contrib.rnn.LSTMCell(rnn_size)
+
         if self._input_keep_prob is not None:
             self._lstm_cell = tf.contrib.rnn.DropoutWrapper(self._lstm_cell, input_keep_prob=self._input_keep_prob)
+
         self._lstm = tf.contrib.rnn.MultiRNNCell([self._lstm_cell] * self._num_layers, state_is_tuple=True)
 
         with tf.name_scope('inputs'):
-            self._seq_len = tf.placeholder(tf.float32, shape=(self._batch_size), name='seq_len')
+            self._seq_len = tf.placeholder(tf.int32, shape=(self._batch_size), name='seq_len')
             self._init_state = tf.placeholder(tf.float32, shape=(self._num_layers, 2, self._batch_size, self._rnn_size), name='init_state')
             self._x = tf.placeholder(tf.float32, shape=(self._batch_size, None, self._feature_size), name='x')  # None is fill-in for dynamically padded sentences.
             self._y = tf.placeholder(tf.int32, shape=(self._batch_size, None, self._num_labels), name='y')  # None is fill-in for dynamically padded labels.
@@ -121,20 +124,34 @@ class MultiRNNLSTM():
 
     @lazy_property
     def dynamic_run(self):
+        # Note: state re-construction currently does NOT account for forward/backward states.
+        # Initial state: [num_layers x 2 x batch_size x rnn_size]
+        # Bi-directional forward-feed state: [(num_layers * 2) x 2 x batch_size x rnn_size]
         unstacked_state = tf.unstack(self._init_state)
         state_tuple = tuple([tf.contrib.rnn.LSTMStateTuple(unstacked_state[idx][0], unstacked_state[idx][1]) for idx in range(self._num_layers)])
-        (self._dynamic_output, self._dynamic_state) = tf.nn.dynamic_rnn(self._lstm, self._x, sequence_length=self._seq_len, initial_state=state_tuple, dtype=tf.float32)
+        output = None
+        state = None
+
+        if self._bi:
+            (outputs, states) = tf.nn.bidirectional_dynamic_rnn(self._lstm, self._lstm, self._x, sequence_length=self._seq_len, initial_state_fw=state_tuple, initial_state_bw=state_tuple, dtype=tf.float32)
+            output = tf.concat(values=outputs, axis=2)
+            state = tf.concat(values=states, axis=0)
+        else:
+            (output, state) = tf.nn.dynamic_rnn(self._lstm, self._x, sequence_length=self._seq_len, initial_state=state_tuple, dtype=tf.float32)
+
+        self._dynamic_output = output
+        self._dynamic_state = state
+
         return (self._dynamic_output, self._dynamic_state)
 
     @lazy_property
     def y_hat(self):
-        output = tf.reshape(self._dynamic_output, [-1, self._rnn_size])
-        self._logits = tf.contrib.layers.fully_connected(inputs=output, num_outputs=self._num_labels)
+        if self._bi:
+            output = tf.reshape(self._dynamic_output, [-1, (self._rnn_size * 2)])
+        else:
+            output = tf.reshape(self._dynamic_output, [-1, self._rnn_size])
 
-        # output = tf.reshape(output, [-1, self._rnn_size])
-        # lstm_logits = tf.matmul(output, self._lstm_W) + self._lstm_b
-        # relu_logits = tf.nn.relu(lstm_logits)
-        # self._logits = tf.matmul(relu_logits, self._W) + self._b
+        self._logits = tf.contrib.layers.fully_connected(inputs=output, num_outputs=self._num_labels)
 
         predicted = tf.nn.softmax(self._logits)
         return predicted

@@ -23,7 +23,10 @@ def _learn(args):
         if input_keep_prob == 0.0:
             input_keep_prob = None
 
-        model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, input_keep_prob)
+        if args.bi:
+            model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, bi=True, input_keep_prob=input_keep_prob)
+        else:
+            model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, bi=False, input_keep_prob=input_keep_prob)
 
     sum_merge = tf.summary.merge_all()
     init = tf.global_variables_initializer()
@@ -137,7 +140,10 @@ def _eval(args):
         if input_keep_prob == 0.0:
             input_keep_prob = None
 
-        model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, input_keep_prob)
+        if args.bi:
+            model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, bi=True, input_keep_prob=input_keep_prob)
+        else:
+            model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, bi=False, input_keep_prob=input_keep_prob)
 
     saver = tf.train.Saver()
     init = tf.global_variables_initializer()
@@ -192,6 +198,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Word2Vec_RNN')
     parser.add_argument('-a', '--alpha', action='store', default=0.0001, type=float)
     parser.add_argument('-b', '--board_path', action='store', default='logs/', type=str)
+    parser.add_argument('--bi', action='store_true')
     parser.add_argument('-c', '--conll_path', action='store')
     parser.add_argument('-d', '--depth', action='store', default=1, type=int)
     parser.add_argument('-i', '--input_keep_prob', action='store', default=0.20, type=float)
