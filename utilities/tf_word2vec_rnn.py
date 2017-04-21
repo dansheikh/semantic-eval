@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 import argparse
 import os
 
@@ -10,7 +11,11 @@ import tensor_tools as tt
 
 
 def _learn(args):
-    label_dict = {'O': 0, 'Material': 1, 'Process': 2, 'Task': 3}
+    label_dict = None
+    if args.nontyped:
+        label_dict = {'O': 0, 'Keyphrase': 1}
+    else:
+        label_dict = {'O': 0, 'Material': 1, 'Process': 2, 'Task': 3}
     num_labels = len(label_dict)
     (sequences, labels) = tt.preprocess(args.word2vec_path, args.labels_path)  # Prepare zipped sequences of vectored words and labels.
     num_inputs = len(sequences)  # Determine number of training examples.
@@ -24,9 +29,9 @@ def _learn(args):
             input_keep_prob = None
 
         if args.bi:
-            model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, bi=True, input_keep_prob=input_keep_prob)
+            model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.optimizer, args.alpha, bi=True, input_keep_prob=input_keep_prob)
         else:
-            model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, bi=False, input_keep_prob=input_keep_prob)
+            model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.optimizer, args.alpha, bi=False, input_keep_prob=input_keep_prob)
 
     sum_merge = tf.summary.merge_all()
     init = tf.global_variables_initializer()
@@ -75,7 +80,7 @@ def _learn(args):
                     learning = False
                     break
                 else:
-                    if len(losses[epoch_cnt]) > 0 and abs(losses[epoch_cnt][-1] - train_cross_entropy) < args.alpha:
+                    if len(losses[epoch_cnt]) > 0 and abs(losses[epoch_cnt][-1] - train_cross_entropy) < args.epsilon:
                         plateau_cnt += 1
                     else:
                         plateau_cnt = 0
@@ -118,7 +123,11 @@ def _learn(args):
 
 
 def _eval(args):
-    label_dict = {'O': 0, 'Material': 1, 'Process': 2, 'Task': 3}
+    label_dict = None
+    if args.nontyped:
+        label_dict = {'O': 0, 'Keyphrase': 1}
+    else:
+        label_dict = {'O': 0, 'Material': 1, 'Process': 2, 'Task': 3}
     label_list = ['' for n in np.arange(len(label_dict))]
     for k, v in label_dict.items():
         label_list[v] = k
@@ -141,9 +150,9 @@ def _eval(args):
             input_keep_prob = None
 
         if args.bi:
-            model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, bi=True, input_keep_prob=input_keep_prob)
+            model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.optimizer, args.alpha, bi=True, input_keep_prob=input_keep_prob)
         else:
-            model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.alpha, bi=False, input_keep_prob=input_keep_prob)
+            model = rnn.MultiRNNLSTM(args.rnn_size, args.depth, num_labels, batch_size, feature_size, args.optimizer, args.alpha, bi=False, input_keep_prob=input_keep_prob)
 
     saver = tf.train.Saver()
     init = tf.global_variables_initializer()
@@ -196,15 +205,18 @@ def _eval(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Word2Vec_RNN')
-    parser.add_argument('-a', '--alpha', action='store', default=0.0001, type=float)
+    parser.add_argument('-a', '--alpha', action='store', default=0.001, type=float)
     parser.add_argument('-b', '--board_path', action='store', default='logs/', type=str)
     parser.add_argument('--bi', action='store_true')
     parser.add_argument('-c', '--conll_path', action='store')
     parser.add_argument('-d', '--depth', action='store', default=1, type=int)
+    parser.add_argument('-e', '--epsilon', action='store', default=0.001, type=float)
     parser.add_argument('-i', '--input_keep_prob', action='store', default=0.20, type=float)
     parser.add_argument('-k', '--kill_zone', action='store', default=1000000, type=int)
     parser.add_argument('-l', '--load_path', action='store')
     parser.add_argument('-m', '--mode', action='store', required=True, choices=['learn', 'eval'])
+    parser.add_argument('--nontyped', action='store_true')
+    parser.add_argument('-o', '--optimizer', action='store', choices=['adam', 'rms', 'sgd'], default='adam')
     parser.add_argument('-p', '--peek', action='store', default='', type=str)
     parser.add_argument('-r', '--rnn_size', action='store', default=32, type=int)
     parser.add_argument('-s', '--save_path', action='store')
@@ -216,12 +228,14 @@ if __name__ == '__main__':
     if args.mode == 'learn':
         if args.save_path is None:
             parser.error('Mode "learn" requires save path.')
+
         print('Learning...')
         _learn(args)
         print('Learning complete.')
     else:
         if args.load_path is None or args.conll_path is None:
             parser.error('Mode "eval" requires load path and CoNLL path.')
+
         print('Evaluating...')
         _eval(args)
         print('Evaluation complete.')

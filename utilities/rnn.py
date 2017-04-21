@@ -17,7 +17,7 @@ class MultiRNNLSTM():
         eta: Learning rate.
         input_keep_prob: Probability of retaining input.
     """
-    def __init__(self, rnn_size, num_layers, num_labels, batch_size, feature_size, eta, bi=False, input_keep_prob=None):
+    def __init__(self, rnn_size, num_layers, num_labels, batch_size, feature_size, optimizer_type, eta, bi=False, input_keep_prob=None):
         self._rnn_size = rnn_size
         self._num_layers = num_layers
         self._num_labels = num_labels
@@ -29,6 +29,13 @@ class MultiRNNLSTM():
         self._dynamic_output = None
         self._dynamic_state = None
         self._logits = None
+
+        if optimizer_type == 'adam':
+            self._optimizer = tf.train.AdamOptimizer(learning_rate=self._eta)
+        elif optimizer_type == 'rms':
+            self._optimizer = tf.train.RMSPropOptimizer(learning_rate=self._eta)
+        elif optimizer_type == 'sgd':
+            self._optimizer = tf.train.GradientDescentOptimizer(learning_rate=self._eta)
 
         self._lstm_cell = tf.contrib.rnn.LSTMCell(rnn_size)
 
@@ -175,8 +182,7 @@ class MultiRNNLSTM():
 
     @lazy_property
     def optimize(self):
-        optimizer = tf.train.AdamOptimizer(self._eta)
-        objective = optimizer.minimize(self.cross_entropy)
+        objective = self._optimizer.minimize(self.cross_entropy)
 
         return objective
 

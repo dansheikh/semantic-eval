@@ -125,7 +125,7 @@ def preprocess(word2vec_path, data_path, sep='\t'):
     sequences = list()
     labels = list()
 
-    with open(data_path, mode='r') as file:
+    with open(data_path, mode='r', encoding='utf-8') as file:
         input_seq = None
         lbl_seq = None
 
@@ -179,8 +179,9 @@ def package_batch(chosen_seqs, sequences, labels, label_dict):
         Vector of sequence lengths for each chosen sequence and a tuple of sequences and labels.
     """
     seq_len = np.zeros(len(chosen_seqs))
+    lbl_cnt = len(label_dict)
     out_idx = label_dict['O']
-    OUT = np.zeros((1,4))
+    OUT = np.zeros((1, lbl_cnt))
     OUT[0][out_idx] = 1
     PAD = np.zeros((1, np.shape(sequences[0])[1]))  # Determine feature size from provided sequence element.
     packed_seqs = []
@@ -208,6 +209,43 @@ def package_batch(chosen_seqs, sequences, labels, label_dict):
     return (seq_len, zip(packed_seqs, packed_lbls))
 
 
+def pad_data(seqs, lbls, lbl_dict):
+    """"Pad sequences and labels to uniform feature size.
+
+    Args:
+        seqs: List of sequences.
+        lbls: List of labels associated with provided sequences.
+
+    Returns:
+        A tuple of sequences and labels.
+    """
+    out_idx = lbl_dict['O']
+    PAD = np.zeros(np.shape(seqs[0])[1])  # Determine feature size from provided sequence element.
+    seq_cnt = len(seqs)
+    max_len = 0
+
+    # Determine max sequence length.
+    for i, seq in enumerate(seqs):
+        seq_len = len(seq)
+        if seq_len > max_len:
+            max_len = seq_len
+
+    for j in np.arange(seq_cnt):
+        seq_len = len(seqs[j])
+        lbl_len = len(lbls[j])
+
+        seq_len_diff = max_len - seq_len
+        lbl_len_diff = max_len - lbl_len
+
+        seq_addon = [PAD for _ in np.arange(seq_len_diff)]
+        lbl_addon = [out_idx for _ in np.arange(lbl_len_diff)]
+
+        seqs[j].extend(seq_addon)
+        lbls[j].extend(lbl_addon)
+
+    return (seqs, lbls)
+
+
 def one_hot(sequences, labels):
     """Encode labels into one-hot format.
 
@@ -216,7 +254,7 @@ def one_hot(sequences, labels):
         labels: A dictionary of labels
 
     Returns:
-        A nested array of one-hot encoded labels and accompanying label dictionary.
+        A nested array of one-hot encoded labels.
     """
     lbl_cnt = len(labels)
     encoding = []
@@ -229,6 +267,29 @@ def one_hot(sequences, labels):
             one_hot_seq[j, labels[input]] = 1
 
         encoding.append(one_hot_seq)
+
+    return encoding
+
+
+def numeric_labels(sequences, labels):
+    """Encode labels into numeric format.
+
+    Args:
+        sequences: A sequence of values to encode.
+        labels: A dictionary of labels
+
+    Returns:
+        A nested array of numeric labels.
+    """
+    encoding = []
+
+    for i, inputs in enumerate(sequences):
+        lbl_seq = []
+
+        for j, input in enumerate(inputs):
+            lbl_seq.append(labels[input])
+
+        encoding.append(lbl_seq)
 
     return encoding
 
