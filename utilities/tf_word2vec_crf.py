@@ -23,6 +23,7 @@ def _learn(args):
     num_seqs = len(sequences)
     num_feats = np.shape(sequences[0])[1]
     seq_lens = [len(sequence) for sequence in sequences]
+    seq_lens = np.array(seq_lens)
 
     # Pad sentences and labels.
     pad_seqs, pad_lbls = tt.pad_data(sequences, scalar_labels, label_dict)
@@ -30,8 +31,8 @@ def _learn(args):
 
     with tf.name_scope('inputs'):
         x = tf.placeholder(tf.float32, shape=(num_seqs, num_words, num_feats), name='sentences')
-        x_lens = tf.placeholder(tf.int32, shape=(None), name='sentence_lens')
-        gold_lbls = tf.placeholder(tf.int32, shape=(num_seqs, None), name='gold_lbls')
+        x_lens = tf.placeholder(tf.int32, shape=(num_seqs), name='sentence_lens')
+        gold_lbls = tf.placeholder(tf.int32, shape=(num_seqs, num_words), name='gold_lbls')
 
     with tf.variable_scope('crf'):
         weights = tt.weight_variable([num_feats, num_lbls], 'weights')
@@ -43,7 +44,16 @@ def _learn(args):
     log_likelihood, trans_params = tf.contrib.crf.crf_log_likelihood(unary_scores, gold_lbls, x_lens)
 
     loss = tf.reduce_mean(-log_likelihood)
-    objective = tf.train.GradientDescentOptimizer(args.alpha).minimize(loss)
+    optimizer = None
+
+    if args.optimizer == 'adam':
+        optimizer = tf.train.AdamOptimizer(args.alpha)
+    elif args.optimizer == 'rms':
+        optimizer = tf.train.RMSPropOptimizer(args.alpha)
+    elif args.optimzier == 'sgd':
+        optimizer = tf.train.GradientDescentOptimizer(args.alpha)
+
+    objective = optimizer.minimize(loss)
     init = tf.global_variables_initializer()
 
     with tf.Session() as sess:
@@ -107,7 +117,7 @@ def _eval(args):
     label_list = [None for _ in range(len(label_dict))]
     for key, val in label_dict.items():
         label_list[val] = key
-      
+
     num_lbls = len(label_dict)
     (sequences, labels) = tt.preprocess(args.word2vec_path, args.labels_path)  # Prepare zipped sequences of vectored words and labels.
     scalar_labels = tt.numeric_labels(labels, label_dict)
@@ -145,9 +155,9 @@ def _eval(args):
 
     with tf.Session() as sess:
         sess.run(init)
-        pp.pprint("Loading {checkpoint}...".format(checkpoint=checkpoint))
+        print("Loading {checkpoint}...".format(checkpoint=checkpoint))
         saver.restore(sess, checkpoint)  # Load trained weights and biases.
-        pp.pprint("Loaded {checkpoint}.".format(checkpoint=checkpoint))
+        print("Loaded {checkpoint}.".format(checkpoint=checkpoint))
 
         feed_dict = {x: pad_seqs, x_lens: seq_lens, gold_lbls: pad_lbls}
         sess_unary_scores, sess_trans_params, sess_loss, _ = sess.run([unary_scores, trans_params, loss, objective], feed_dict=feed_dict)
@@ -159,9 +169,9 @@ def _eval(args):
         # Write expected and predicted values to file in CoNLL format.
         with open(conll_file, mode='w+') as conll:
             for (sess_score, sess_lbl, sess_seq_len) in zip(sess_unary_scores, pad_lbls, seq_lens):
-                pro_sess_score = sess_score[:sess_seq_len]
+                sess_score = sess_score[:sess_seq_len]
                 sess_lbl = sess_lbl[:sess_seq_len]
-                viterbi_seq, _ = tf.contrib.crf.viterbi_decode(pro_sess_score, sess_trans_params)
+                viterbi_seq, _ = tf.contrib.crf.viterbi_decode(sess_score, sess_trans_params)
                 for expect, predict in zip(sess_lbl, viterbi_seq):
                     line = "{e}\t{p}\n".format(e=label_list[expect], p=label_list[predict])
                     conll.write(line)
