@@ -2,7 +2,6 @@
 
 import argparse
 import os
-import pprint
 
 import numpy as np
 import tensorflow as tf
@@ -11,7 +10,6 @@ import tensor_tools as tt
 
 
 def _learn(args):
-    pp = pprint.PrettyPrinter()
     label_dict = None
     if args.nontyped:
         label_dict = {'O': 0, 'Keyphrase': 1}
@@ -30,16 +28,16 @@ def _learn(args):
     num_words = np.shape(pad_seqs)[1]
 
     with tf.name_scope('inputs'):
-        x = tf.placeholder(tf.float32, shape=(num_seqs, num_words, num_feats), name='sentences')
-        x_lens = tf.placeholder(tf.int32, shape=(num_seqs), name='sentence_lens')
-        gold_lbls = tf.placeholder(tf.int32, shape=(num_seqs, num_words), name='gold_lbls')
+        x = tf.placeholder(tf.float32, shape=(None, num_words, num_feats), name='sentences')
+        x_lens = tf.placeholder(tf.int32, shape=(None), name='sentence_lens')
+        gold_lbls = tf.placeholder(tf.int32, shape=(None, num_words), name='gold_lbls')
 
     with tf.variable_scope('crf'):
         weights = tt.weight_variable([num_feats, num_lbls], 'weights')
 
     x_matrix = tf.reshape(x, [-1, num_feats])
     unary_scores_matrix = tf.matmul(x_matrix, weights)
-    unary_scores = tf.reshape(unary_scores_matrix, [num_seqs, num_words, num_lbls])
+    unary_scores = tf.reshape(unary_scores_matrix, [-1, num_words, num_lbls])
 
     log_likelihood, trans_params = tf.contrib.crf.crf_log_likelihood(unary_scores, gold_lbls, x_lens)
 
@@ -60,42 +58,59 @@ def _learn(args):
         sess.run(init)
         learning = True
         epoch = 0
-        plateau_cnt = 0
-        last_loss = None
+        num_batches = num_seqs // args.target_batch_size
+        epoch_accuracy = []
+        epoch_loss = []
 
         while learning:
-            feed_dict = {x: pad_seqs, x_lens: seq_lens, gold_lbls: pad_lbls}
-            sess_unary_scores, sess_trans_params, sess_loss, _ = sess.run([unary_scores, trans_params, loss, objective], feed_dict=feed_dict)
-
-            # Check if learning has plateaued.
-            if plateau_cnt >= 3:
-                print('Learning plateaued.')
-                learning = False
-            elif epoch >= args.kill_zone:
-                print('Learning timeout.')
-                learning = False
-            else:
-                if last_loss is not None and abs(last_loss - sess_loss) < args.epsilon:
-                    plateau_cnt += 1
-                else:
-                    plateau_cnt = 0
+            correct_lbls = 0
+            totals_lbls = 0
 
             if (epoch + 1) % 10 == 0:
-                correct_lbls = 0
-                totals_lbls = 0
+                epoch_accuracy.append([])
+                epoch_loss.append([])
 
-                for (sess_score, sess_lbl, sess_seq_len) in zip(sess_unary_scores, pad_lbls, seq_lens):
-                    sess_score = sess_score[:sess_seq_len]
-                    sess_lbl = sess_lbl[:sess_seq_len]
-                    viterbi_seq, _ = tf.contrib.crf.viterbi_decode(sess_score, sess_trans_params)
+            for batch_idx in np.arange(num_batches):
+                seq_batch = None
+                lbl_batch = None
+                batch_lens = None
 
-                    correct_lbls += np.sum(np.equal(viterbi_seq, sess_lbl))
-                    totals_lbls += sess_seq_len
+                if batch_idx < num_batches:
+                    seq_batch = pad_seqs[(batch_idx * args.target_batch_size): ((batch_idx + 1) * args.target_batch_size)]
+                    lbl_batch = pad_lbls[(batch_idx * args.target_batch_size): ((batch_idx + 1) * args.target_batch_size)]
+                    batch_lens = seq_lens[(batch_idx * args.target_batch_size): ((batch_idx + 1) * args.target_batch_size)]
+                else:
+                    seq_batch = pad_seqs[(batch_idx * args.target_batch_size):]
+                    lbl_batch = pad_lbls[(batch_idx * args.target_batch_size):]
+                    batch_lens = seq_lens[(batch_idx * args.target_batch_size):]
 
-                accuracy = 100 * correct_lbls / float(totals_lbls)
-                print("Epoch [{}] Accuracy {:.2f} | Loss: {}".format(epoch, accuracy, sess_loss))
+                feed_dict = {x: seq_batch, x_lens: batch_lens, gold_lbls: lbl_batch}
+                sess_unary_scores, sess_trans_params, sess_loss, _ = sess.run([unary_scores, trans_params, loss, objective], feed_dict=feed_dict)
 
-            last_loss = sess_loss
+                if (epoch + 1) % 10 == 0:
+                    for (sess_score, sess_lbl, sess_seq_len) in zip(sess_unary_scores, lbl_batch, seq_lens):
+                        sess_score = sess_score[:sess_seq_len]
+                        sess_lbl = sess_lbl[:sess_seq_len]
+                        viterbi_seq, _ = tf.contrib.crf.viterbi_decode(sess_score, sess_trans_params)
+
+                        correct_lbls += np.sum(np.equal(viterbi_seq, sess_lbl))
+                        totals_lbls += sess_seq_len
+
+                    accuracy = 100 * correct_lbls / float(totals_lbls)
+                    epoch_accuracy[-1].append(accuracy)
+                    epoch_loss[-1].append(sess_loss)
+
+            if len(epoch_loss) > 2:
+                previous_loss = np.mean(epoch_loss[-2])
+                current_loss = np.mean(epoch_loss[-1])
+                loss_diff = previous_loss - current_loss
+                print("Epoch [{}] Accuracy {:.2f} | Loss: {:.5f} | Loss Diff: {:.5f}".format(epoch, np.mean(epoch_accuracy[-1]), current_loss, loss_diff))
+
+                if abs(loss_diff) < args.epsilon:
+                    learning = False
+
+            if epoch >= args.kill_zone:
+                learning = False
             epoch += 1
 
         path = os.path.join(args.save_path, '')
@@ -107,7 +122,6 @@ def _learn(args):
 
 
 def _eval(args):
-    pp = pprint.PrettyPrinter()
     label_dict = None
     if args.nontyped:
         label_dict = {'O': 0, 'Keyphrase': 1}
@@ -177,7 +191,6 @@ def _eval(args):
                     conll.write(line)
 
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Word2Vec_CRF')
     parser.add_argument('-a', '--alpha', action='store', default=0.001, type=float)
@@ -191,6 +204,7 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--optimizer', action='store', choices=['adam', 'rms', 'sgd'], default='adam')
     parser.add_argument('-p', '--peek', action='store', default='', type=str)
     parser.add_argument('-s', '--save_path', action='store')
+    parser.add_argument('-t', '--target_batch_size', action='store', default=25, type=int)
     parser.add_argument('word2vec_path')
     parser.add_argument('labels_path')
     args = parser.parse_args()
@@ -209,4 +223,3 @@ if __name__ == '__main__':
         print('Evaluating...')
         _eval(args)
         print('Evaluation complete.')
-
