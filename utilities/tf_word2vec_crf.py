@@ -58,6 +58,7 @@ def _learn(args):
         sess.run(init)
         learning = True
         epoch = 0
+        plateau_cnt = 0
         num_batches = num_seqs // args.target_batch_size
         epoch_accuracy = []
         epoch_loss = []
@@ -107,7 +108,10 @@ def _learn(args):
                 print("Epoch [{}] Accuracy {:.2f} | Loss: {:.5f} | Loss Diff: {:.5f}".format(epoch, np.mean(epoch_accuracy[-1]), current_loss, loss_diff))
 
                 if abs(loss_diff) < args.epsilon:
-                    learning = False
+                    plateau_cnt += 1
+
+            if plateau_cnt >= 3:
+                learning = False
 
             if epoch >= args.kill_zone:
                 learning = False
