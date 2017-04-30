@@ -89,7 +89,7 @@ def _learn(args):
                 sess_unary_scores, sess_trans_params, sess_loss, _ = sess.run([unary_scores, trans_params, loss, objective], feed_dict=feed_dict)
 
                 if (epoch + 1) % 10 == 0:
-                    for (sess_score, sess_lbl, sess_seq_len) in zip(sess_unary_scores, lbl_batch, seq_lens):
+                   for (sess_score, sess_lbl, sess_seq_len) in zip(sess_unary_scores, lbl_batch, seq_lens):
                         sess_score = sess_score[:sess_seq_len]
                         sess_lbl = sess_lbl[:sess_seq_len]
                         viterbi_seq, _ = tf.contrib.crf.viterbi_decode(sess_score, sess_trans_params)
@@ -185,7 +185,7 @@ def _eval(args):
         conll_file = "{path}{filename}.log".format(path=path, filename=filename)
 
         # Write expected and predicted values to file in CoNLL format.
-        with open(conll_file, mode='w+') as conll:
+        with open(conll_file, mode='a+') as conll:
             for (sess_score, sess_lbl, sess_seq_len) in zip(sess_unary_scores, pad_lbls, seq_lens):
                 sess_score = sess_score[:sess_seq_len]
                 sess_lbl = sess_lbl[:sess_seq_len]
